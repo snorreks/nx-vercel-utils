@@ -2,14 +2,14 @@
 
 ![npm (nx-vercel-utils)](https://img.shields.io/npm/v/nx-vercel-utils)
 
--   [Features](#features)
--   [Install](#install)
--   [Description](#description)
--   [Prerequisites](#prerequisites)
--   [Executors](#executors)
-    -   [Env](#env)
-        -   [Options](#options)
-        -   [Examples](#examples)
+- [Features](#features)
+- [Install](#install)
+- [Description](#description)
+- [Prerequisites](#prerequisites)
+- [Executors](#executors)
+	- [Env](#env)
+		- [Options](#options)
+		- [Examples](#examples)
 
 ## Features
 
@@ -46,6 +46,8 @@ vercel link
 ## Executors
 
 ### Env
+
+See the example [here](https://github.com/snorreks/nx-vercel-utils/tree/master/example/apps/frontend)
 
 ```json
 ...
