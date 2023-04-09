@@ -1,0 +1,25 @@
+{
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": true
+		// "source.sortImports": true
+	},
+	"eslint.validate": ["typescript"],
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"files.maxMemoryForLargeFilesMB": 6144,
+	"cSpell.words": [
+		"buildable",
+		"devkit",
+		"Esbuild",
+		"execa",
+		"firestore",
+		"JSONBIN",
+		"metafile",
+		"nanospinner",
+		"nrwl",
+		"nvexeca",
+		"opentelemetry",
+		"outfile",
+		"preinstall",
+		"rawlist"
+	]
+}

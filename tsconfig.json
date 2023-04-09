@@ -1,0 +1,51 @@
+{
+	"compilerOptions": {
+		"declaration": true,
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true,
+		"importHelpers": true,
+		"strictNullChecks": true,
+		"skipDefaultLibCheck": true,
+		"baseUrl": ".",
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
+		"noImplicitUseStrict": false,
+		"noUnusedParameters": true,
+		"preserveConstEnums": true,
+		"removeComments": true,
+		"resolveJsonModule": true,
+		"stripInternal": true,
+		"verbatimModuleSyntax": true,
+		"rootDir": "src",
+		"lib": ["ES2021"],
+		"module": "NodeNext",
+		"target": "ES2021",
+		"esModuleInterop": true,
+		"moduleResolution": "node",
+		"noUnusedLocals": true,
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"sourceMap": true,
+		"outDir": "dist",
+		"paths": {
+			"$types": ["src/types"],
+			"$constants": ["src/constants"],
+			"$constants/*": ["src/constants/*"],
+			"$utils": ["src/utils"],
+			"$utils/*": ["src/utils/*"]
+		}
+	},
+	"include": ["src"],
+	"files": [],
+	"references": [
+		{
+			"path": "./tsconfig.types.json"
+		}
+	]
+}
