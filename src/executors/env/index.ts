@@ -1,15 +1,21 @@
 import type { Executor, ExecutorContext } from '@nrwl/devkit';
 import { join } from 'node:path';
 import type { PackageManager } from '$types';
-import { logger, getFlavor, getFlavorValue, execute } from '$utils';
+import { logger, getFlavor, getFlavorValue, execute, getLimiter } from '$utils';
 import { mkdir, readFile, writeFile } from 'fs/promises';
+
+type EnviromentInput =
+	| 'production'
+	| 'development'
+	| 'preview'
+	| `preview:${string}`;
 
 interface EmulateOptions {
 	/** Don't log anything */
 	silent?: boolean;
 	/** Get verbose logs */
 	verbose?: boolean;
-	flavors: Record<string, string>;
+	flavors: Record<string, EnviromentInput>;
 	/** The flavor of the project */
 	flavor?: string;
 
@@ -20,6 +26,8 @@ interface EmulateOptions {
 	vercelProjectName: string;
 
 	only?: string[];
+
+	concurrency?: number;
 }
 type Environment = 'production' | 'development' | 'preview';
 
@@ -67,8 +75,11 @@ const getBaseOptions = (
 		temporaryDirectory,
 	};
 
-	if (baseOptions.environment === 'preview' && flavorValue !== 'preview') {
-		baseOptions.githubBranch = flavorValue;
+	if (
+		baseOptions.environment === 'preview' &&
+		flavorValue.startsWith('preview:')
+	) {
+		baseOptions.githubBranch = flavorValue.replace('preview:', '');
 	}
 	return baseOptions;
 };
@@ -137,7 +148,8 @@ const getCommandArguments = (
 const deleteEnvVariable = async (
 	options: BaseOptions & { key: string },
 ): Promise<boolean> => {
-	const { projectRoot, packageManager } = options;
+	const { projectRoot, packageManager, environment, key, githubBranch } =
+		options;
 	logger.debug('deleteEnvVariable', options);
 	try {
 		await execute({
@@ -146,8 +158,16 @@ const deleteEnvVariable = async (
 				...options,
 				value: undefined,
 			}),
+			questionAnswers: [
+				{
+					question: `Remove ${key} from which Environments?`,
+					answer: githubBranch
+						? `Preview (${githubBranch})`
+						: environment,
+				},
+			],
 			cwd: projectRoot,
-			maxTimeout: 60 * 1000,
+			maxTimeout: 2 * 60 * 1000,
 		});
 		return true;
 	} catch (error) {
@@ -175,7 +195,7 @@ const addEnvVariable = async (
 				answer: '',
 			},
 		],
-		maxTimeout: 60 * 1000,
+		maxTimeout: 2 * 60 * 1000,
 	});
 };
 
@@ -254,26 +274,28 @@ const executor: Executor<EmulateOptions> = async (options, context) => {
 			});
 		}
 	};
-
-	// await Promise.all(
-	// 	envFileVariables.map(([key, value]) => uploadEnvVariable(key, value)),
-	// );
-
 	logger.startSpinner(envFileVariables.length, options.vercelProjectName);
 
-	for (const [key, value] of envFileVariables) {
-		const startTime = Date.now();
-		try {
-			await uploadAndDeleteEnvVariable(key, value);
-			logger.logFunctionDeployed(key, Date.now() - startTime);
-		} catch (error) {
-			const errorMessage = (error as { message?: string } | undefined)
-				?.message;
-			logger.debug(error);
+	const limit = getLimiter<void>(options.concurrency ?? 10);
 
-			logger.logFunctionFailed(key, errorMessage);
-		}
-	}
+	await Promise.all(
+		envFileVariables.map(([key, value]) =>
+			limit(async () => {
+				const startTime = Date.now();
+				try {
+					await uploadAndDeleteEnvVariable(key, value);
+					logger.logFunctionDeployed(key, Date.now() - startTime);
+				} catch (error) {
+					const errorMessage = (
+						error as { message?: string } | undefined
+					)?.message;
+					logger.debug(error);
+
+					logger.logFunctionFailed(key, errorMessage);
+				}
+			}),
+		),
+	);
 
 	logger.endSpinner();
 

@@ -41,6 +41,11 @@
 			"items": {
 				"type": "string"
 			}
+		},
+		"concurrency": {
+			"type": "number",
+			"description": "The number of envrioments to deploy in parallel",
+			"aliases": ["c"]
 		}
 	},
 	"required": ["flavors", "vercelProjectName"]
