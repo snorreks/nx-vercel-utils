@@ -43,14 +43,6 @@ vercel login # if you haven't logged in
 vercel link
 ```
 
-then create a vercel.json file with the project name
-
-```json
-{
-	"name": "your-vercel-project-name"
-}
-```
-
 ## Executors
 
 ### Env

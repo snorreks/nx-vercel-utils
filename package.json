@@ -1,7 +1,7 @@
 {
 	"name": "nx-vercel-utils",
 	"type": "module",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "Nx plugin to deploy env variables to Vercel",
 	"license": "MIT",
 	"main": "index.js",
