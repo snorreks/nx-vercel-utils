@@ -83,5 +83,6 @@ apps/mailvideo/nuxt/static/*.js
 .vercel
 storybook-static
 
-!apps/functions/.env.development
-!apps/functions/.env.prodcution
+!apps/frontend/.env.development
+!apps/frontend/.env.production
+!apps/frontend/.env.staging

@@ -1,0 +1,17 @@
+{
+	"root": "apps/frontend",
+	"sourceRoot": "apps/frontend/src",
+	"projectType": "application",
+	"targets": {
+		"deploy-vercel-env": {
+			"executor": "../dist:env",
+			"options": {
+				"flavors": {
+					"development": "development",
+					"production": "production",
+					"staging": "staging"
+				}
+			}
+		}
+	}
+}

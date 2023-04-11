@@ -12,7 +12,7 @@ const config = {
 		{
 			files: ['*.ts', '*.js'],
 			parserOptions: {
-				project: ['apps/frontend/tsconfig.*?.json'],
+				project: ['apps/frontend-b/tsconfig.*?.json'],
 			},
 		},
 	],

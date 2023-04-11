@@ -3,44 +3,38 @@ import { spawn } from 'cross-spawn';
 import { logger } from './logger';
 type Environment = Record<string, string | undefined>;
 
-export const execute = async ({
-	packageManager,
-	commandArguments,
-	cwd,
-	autoPrompt,
-	environment,
-}: {
+export const execute = async (options: {
 	packageManager: PackageManager;
 	commandArguments: string[];
 	cwd?: string;
-	autoPrompt?: (data: string) => string | undefined;
+	questionAnswers?: {
+		question: string;
+		answer: string;
+	}[];
 	environment?: Environment;
+	maxTimeout?: number;
 }) => {
+	const { commandArguments, packageManager } = options;
 	if (packageManager === 'global') {
-		await runCommand({
+		return runCommand({
+			...options,
 			command: commandArguments[0],
 			commandArguments: commandArguments.slice(1),
-			cwd,
-			environment,
-			autoPrompt,
-		});
-	} else if (packageManager === 'npm') {
-		await runCommand({
-			command: 'npm',
-			commandArguments: ['run', ...commandArguments],
-			cwd,
-			autoPrompt,
-			environment,
-		});
-	} else {
-		await runCommand({
-			command: packageManager,
-			commandArguments,
-			cwd,
-			autoPrompt,
-			environment,
 		});
 	}
+	if (packageManager === 'npm') {
+		return runCommand({
+			...options,
+			command: 'npm',
+			commandArguments: ['run', ...commandArguments],
+		});
+	}
+
+	return runCommand({
+		...options,
+		command: packageManager,
+		commandArguments,
+	});
 };
 
 /**
@@ -53,13 +47,18 @@ export const execute = async ({
  * @returns the result of the command
  */
 
-export const runCommand = (options: {
+export const runCommand = async (options: {
 	command: string;
 	cwd?: string;
 	commandArguments?: string[];
 	environment?: Environment;
 	silent?: boolean;
-	autoPrompt?: (data: string) => string | undefined;
+	questionAnswers?: {
+		question: string;
+		answer: string;
+	}[];
+
+	maxTimeout?: number;
 }): Promise<void> => {
 	logger.debug('runCommand', options);
 	const {
@@ -68,69 +67,148 @@ export const runCommand = (options: {
 		commandArguments = [],
 		environment,
 		silent,
-		autoPrompt,
+		questionAnswers,
+		maxTimeout,
 	} = options;
-	return new Promise((resolve, reject) => {
-		logger.debug(`Executing "${command} ${commandArguments.join(' ')}"...`);
-		const child = spawn(command, commandArguments, {
-			cwd,
-			env: environment ?? process.env,
-			stdio: silent ? undefined : autoPrompt ? 'pipe' : 'inherit',
-		});
-		child.on('close', (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(
-					new Error(
-						`Command "${command} ${commandArguments.join(
-							' ',
-						)}" failed with exit code ${code}`,
-					),
-				);
-			}
-		});
+	logger.debug(`Executing "${command} ${commandArguments.join(' ')}"...`);
 
-		if (autoPrompt) {
-			child.stdout?.on('data', (data) => {
-				const response = autoPrompt(data?.toString());
-				if (response) {
-					child.stdin?.write(response + '\n');
-				}
-			});
-			child.stderr?.on('data', (data) => {
-				const response = autoPrompt(data?.toString());
-				if (response) {
-					child.stdin?.write(response + '\n');
-				}
-			});
-		}
-
-		child.on('error', (error) => {
-			logger.error(error);
-			reject(error);
-		});
-		child.on('exit', (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(
-					new Error(
-						`Command "${command} ${commandArguments.join(
-							' ',
-						)}" failed with exit code ${code}`,
-					),
-				);
-			}
-		});
-		child.on('disconnect', () => {
-			reject(
-				new Error(
-					`Command "${command} ${commandArguments.join(
-						' ',
-					)}" disconnected`,
-				),
-			);
-		});
+	const child = spawn(command, commandArguments, {
+		cwd,
+		env: environment ?? process.env,
+		stdio: silent ? undefined : questionAnswers ? 'pipe' : 'inherit',
 	});
+
+	let timeoutId: NodeJS.Timeout | undefined;
+	if (maxTimeout) {
+		timeoutId = setTimeout(() => {
+			logger.error('Command timed out');
+			child.kill(); // Kill the child process if it hasn't completed within the timeout
+		}, maxTimeout);
+	}
+
+	if (questionAnswers) {
+		let strData = '';
+		let questionAnswer = questionAnswers.shift();
+		let isWriting = false;
+		// let questionTimeoutId: NodeJS.Timeout | undefined;
+		const onData = (data: Buffer) => {
+			if (!questionAnswer || isWriting) {
+				return;
+			}
+
+			const minifyText = (html: string) => {
+				return html
+					.replace(/\s{2,}/g, ' ')
+					.replace(/'/g, '"')
+					.replace(/> class="paragraph-class</g, '')
+					.replace(/(\r\n|\n|\r)/gm, '')
+					.replace(/ +(?= )/g, '')
+					.replace(/> </g, '><')
+					.replace(/ \/>/g, '/>')
+					.replace(/ >/g, '>')
+					.trim();
+			};
+
+			strData += data.toString();
+
+			if (
+				minifyText(strData).includes(
+					minifyText(questionAnswer.question),
+				)
+			) {
+				logger.debug('Found question', {
+					questionAnswer,
+				});
+				isWriting = true;
+
+				try {
+					child.stdin?.write(questionAnswer.answer);
+					child.stdin?.write('\n');
+
+					questionAnswer = questionAnswers.shift();
+					strData = '';
+				} catch (error) {
+					logger.error('Error writing to stdin', error);
+				}
+				isWriting = false;
+
+				return;
+			}
+
+			// questionTimeoutId = setTimeout(() => {
+			// 	logger.debug('Checking for question', {
+			// 		questionAnswer,
+			// 		strData,
+			// 		data: currentStrData,
+			// 		equal: strData === currentStrData,
+			// 	});
+			// 	if (questionAnswer && strData === currentStrData) {
+			// 		try {
+			// 			child.stdin?.write(questionAnswer.answer + '\n');
+			// 			questionAnswer = questionAnswers.shift();
+			// 		} catch (error) {
+			// 			logger.error('Error writing to stdin', error);
+			// 		}
+			// 	}
+			// }, 1000);
+		};
+
+		child.stdout?.on('data', (data) => {
+			onData(data);
+		});
+		child.stderr?.on('data', (data) => {
+			onData(data);
+		});
+	}
+
+	try {
+		await new Promise<void>((resolve, reject) => {
+			child.once('close', (code) => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							`Command "${command} ${commandArguments.join(
+								' ',
+							)}" failed with exit code ${code}`,
+						),
+					);
+				}
+			});
+
+			child.once('error', (error) => {
+				reject(error);
+			});
+			child.once('exit', (code) => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							`Command "${command} ${commandArguments.join(
+								' ',
+							)}" failed with exit code ${code}`,
+						),
+					);
+				}
+			});
+			child.once('disconnect', () => {
+				reject(
+					new Error(
+						`Command "${command} ${commandArguments.join(
+							' ',
+						)}" disconnected`,
+					),
+				);
+			});
+		});
+	} catch (error) {
+		logger.debug(error);
+		throw error;
+	} finally {
+		if (timeoutId) {
+			clearTimeout(timeoutId);
+		}
+	}
 };

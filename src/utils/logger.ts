@@ -1,3 +1,7 @@
+import chalk from 'chalk';
+import { createSpinner, type Spinner } from 'nanospinner';
+import { toDisplayDuration } from './common';
+
 /** `LogType` indicates the type of console log. See {@link Console} */
 export type LogType = 'debug' | 'info' | 'warn' | 'error' | 'log';
 
@@ -44,11 +48,23 @@ export interface LoggerInterface {
 
 	readonly verbose: boolean;
 
+	readonly hasFailedEnvironments: boolean;
+
 	/**
 	 * Sets the current log severity. If the severity is not set, it will never
 	 * log anything.
 	 */
 	setLogSeverity(options: { silent?: boolean; verbose?: boolean }): void;
+
+	startSpinner(deployableEnvironmentsAmount: number, projectId: string): void;
+
+	endSpinner(): void;
+
+	spinnerLog(text: string): void;
+
+	logFunctionDeployed(environmentName: string, time: number): void;
+
+	logFunctionFailed(environmentName: string, errorMessage?: string): void;
 
 	/**
 	 * Writes a `LogEntry` to the console.
@@ -115,6 +131,66 @@ class LoggerService implements LoggerInterface {
 		return this.currentLogSeverity === 'debug';
 	}
 
+	private _spinner?: Spinner;
+	private _projectId?: string;
+	private _deployableEnvironmentsAmount = 0;
+
+	get hasFailedEnvironments(): boolean {
+		return this._failedDeployedFunctionAmount > 0;
+	}
+
+	private readonly _successfullyDeployedEnvironments: {
+		environmentName: string;
+		time: number;
+	}[] = [];
+	private readonly _failedDeployedEnvironments: {
+		environmentName: string;
+		errorMessage?: string;
+	}[] = [];
+
+	logFunctionDeployed(environmentName: string, time: number): void {
+		this._successfullyDeployedEnvironments.push({
+			environmentName,
+			time,
+		});
+		this.spinnerLog(
+			chalk.green(
+				`Successfully deployed environment ${chalk.bold(
+					environmentName,
+				)}`,
+			),
+		);
+	}
+
+	logFunctionFailed(environmentName: string, errorMessage?: string): void {
+		this._failedDeployedEnvironments.push({
+			environmentName,
+			errorMessage,
+		});
+		this.spinnerLog(
+			chalk.red(
+				`${chalk.bold(environmentName)} failed to environment${
+					errorMessage ? `: ${errorMessage}` : ''
+				}`,
+			),
+		);
+	}
+
+	private get _successfullyDeployedFunctionAmount(): number {
+		return this._successfullyDeployedEnvironments.length;
+	}
+	private get _failedDeployedFunctionAmount(): number {
+		return this._failedDeployedEnvironments.length;
+	}
+
+	get remainingEnvironmentsAmount(): number {
+		return (
+			this._deployableEnvironmentsAmount -
+			this._successfullyDeployedFunctionAmount -
+			this._failedDeployedFunctionAmount
+		);
+	}
+
 	setLogSeverity(options: { silent?: boolean; verbose?: boolean }): void {
 		if (options.silent) {
 			this.currentLogSeverity = 'silent';
@@ -153,6 +229,108 @@ class LoggerService implements LoggerInterface {
 		} else {
 			log(...data);
 		}
+	}
+
+	get spinnerDefaultText(): string {
+		return `Deploying to ${chalk.bold(this._projectId)} ${
+			this.remainingEnvironmentsAmount
+		}/${this._deployableEnvironmentsAmount} environments`;
+	}
+
+	startSpinner(
+		deployableEnvironmentsAmount: number,
+		projectId: string,
+	): void {
+		this._deployableEnvironmentsAmount = deployableEnvironmentsAmount;
+		this._projectId = projectId;
+		if (this.verbose) {
+			return;
+		}
+		this._spinner = createSpinner(this.spinnerDefaultText).start();
+	}
+
+	endSpinner(): void {
+		if (this._successfullyDeployedFunctionAmount) {
+			this.spinnerSuccess(
+				chalk.green(
+					`Successfully deployed ${chalk.bold(
+						this._successfullyDeployedFunctionAmount,
+					)} environments to ${this._projectId}:`,
+				),
+			);
+			for (const { environmentName, time } of this
+				._successfullyDeployedEnvironments) {
+				this.info(
+					chalk.green(chalk.bold(environmentName)),
+					`Time: ${toDisplayDuration(time)}`,
+				);
+			}
+		}
+
+		if (this._failedDeployedFunctionAmount) {
+			this.spinnerError(
+				chalk.red(
+					`Failed to deploy ${chalk.bold(
+						this._failedDeployedFunctionAmount,
+					)} environments to ${this._projectId}:`,
+				),
+			);
+
+			for (const { environmentName, errorMessage } of this
+				._failedDeployedEnvironments) {
+				this.error(
+					chalk.red(chalk.bold(environmentName)),
+					`Error: ${chalk.red(errorMessage)}`,
+				);
+			}
+
+			this.log(
+				'Add this to the end of your command to only deploy the failed commands:' +
+					`\n${chalk.bold(
+						'--only ' +
+							this._failedDeployedEnvironments
+								.map(({ environmentName }) => environmentName)
+								.join(','),
+					)}`,
+			);
+		}
+	}
+
+	spinnerLog(stopText: string): void {
+		if (!this._spinner) {
+			this.log(stopText);
+			return;
+		}
+
+		this._spinner?.stop({
+			text: stopText,
+		});
+
+		this._spinner?.start({
+			text: this.spinnerDefaultText,
+		});
+	}
+
+	private spinnerSuccess(text: string): void {
+		if (!this._spinner) {
+			this.log(text);
+			return;
+		}
+
+		this._spinner?.success({
+			text,
+		});
+	}
+
+	private spinnerError(text: string): void {
+		if (!this._spinner) {
+			this.log(text);
+			return;
+		}
+
+		this._spinner?.error({
+			text,
+		});
 	}
 
 	debug(...args: unknown[]): void {

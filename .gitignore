@@ -48,5 +48,3 @@ tsconfig.types.tsbuildinfo
 
 
 .vercel
-!example/apps/frontend/.env.production
-!example/apps/frontend/.env.staging

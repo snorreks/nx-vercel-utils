@@ -2,14 +2,14 @@
 
 ![npm (nx-vercel-utils)](https://img.shields.io/npm/v/nx-vercel-utils)
 
-- [Features](#features)
-- [Install](#install)
-- [Description](#description)
-- [Prerequisites](#prerequisites)
-- [Executors](#executors)
-	- [Env](#env)
-		- [Options](#options)
-		- [Examples](#examples)
+-   [Features](#features)
+-   [Install](#install)
+-   [Description](#description)
+-   [Prerequisites](#prerequisites)
+-   [Executors](#executors)
+    -   [Env](#env)
+        -   [Options](#options)
+        -   [Examples](#examples)
 
 ## Features
 
@@ -43,6 +43,14 @@ vercel login # if you haven't logged in
 vercel link
 ```
 
+then create a vercel.json file with the project name
+
+```json
+{
+	"name": "your-vercel-project-name"
+}
+```
+
 ## Executors
 
 ### Env
@@ -59,20 +67,22 @@ See the example [here](https://github.com/snorreks/nx-vercel-utils/tree/master/e
 					"development": "development",
 					"production": "production",
 					"staging": "staging"
-				}
+				},
+				"vercelProjectName": "your-vercel-project-name"
 			}
 		},
 ```
 
 #### Options
 
-| Option           | Description                                                                                                                                                                                                                                             | Default  | Alias |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
-| `flavors`        | A object of the flavors to use, the key is the flavor name and value is either 'production', 'development' or the github branch name to use for preview. Read more [here](https://vercel.com/docs/concepts/projects/environment-variables#environments) | required |       |
-| `flavor`         | The flavor to use, default will be the first key in the `flavors` object                                                                                                                                                                                |          |       |
-| `silent`         | Whether to suppress all logs.                                                                                                                                                                                                                           | `false`  | `s`   |
-| `verbose`        | Whether to run the command with verbose logging.                                                                                                                                                                                                        | `false`  | `v`   |
-| `packageManager` | The package manager to use for deploying with firebase-tools. Either: `pnpm`, `npm`, `yarn` or `global`.                                                                                                                                                | `pnpm`   | `pm`  |
+| Option              | Description                                                                                                                                                                                                                                             | Default  | Alias     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| `vercelProjectName` | The name of the vercel project.                                                                                                                                                                                                                         | required | `project` |
+| `flavors`           | A object of the flavors to use, the key is the flavor name and value is either 'production', 'development' or the github branch name to use for preview. Read more [here](https://vercel.com/docs/concepts/projects/environment-variables#environments) | required |           |
+| `flavor`            | The flavor to use, default will be the first key in the `flavors` object.                                                                                                                                                                               |          |           |
+| `silent`            | Whether to suppress all logs.                                                                                                                                                                                                                           | `false`  | `s`       |
+| `verbose`           | Whether to run the command with verbose logging.                                                                                                                                                                                                        | `false`  | `v`       |
+| `packageManager`    | The package manager to use for deploying with firebase-tools. Either: `pnpm`, `npm`, `yarn` or `global`.                                                                                                                                                | `pnpm`   | `pm`      |
 
 #### Examples
 
