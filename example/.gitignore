@@ -44,10 +44,6 @@ testem.log
 **/build
 **/.svelte-kit
 **/package
-**.env
-**.env.*
-**!.env.example
-!**.env.development
 **.vercel
 **.output
 **.vercel_build_output
@@ -82,7 +78,3 @@ apps/mailvideo/nuxt/static/*.js
 **/**firebase-debug*.log
 .vercel
 storybook-static
-
-!apps/frontend/.env.development
-!apps/frontend/.env.production
-!apps/frontend/.env.staging

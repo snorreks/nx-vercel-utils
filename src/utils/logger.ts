@@ -50,6 +50,8 @@ export interface LoggerInterface {
 
 	readonly hasFailedEnvironments: boolean;
 
+	readonly failedDeployedEnvironmentNames: string[];
+
 	/**
 	 * Sets the current log severity. If the severity is not set, it will never
 	 * log anything.
@@ -147,6 +149,12 @@ class LoggerService implements LoggerInterface {
 		environmentName: string;
 		errorMessage?: string;
 	}[] = [];
+
+	get failedDeployedEnvironmentNames(): string[] {
+		return this._failedDeployedEnvironments.map(
+			({ environmentName }) => environmentName,
+		);
+	}
 
 	logFunctionDeployed(environmentName: string, time: number): void {
 		this._successfullyDeployedEnvironments.push({

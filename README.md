@@ -65,6 +65,8 @@ See the example [here](https://github.com/snorreks/nx-vercel-utils/tree/master/e
 		},
 ```
 
+You need to create .env.{flavor} files for each flavor you want to deploy. The flavor name will be the key in the `flavors` object.
+
 #### Options
 
 | Option              | Description                                                                                                                                                                                                                                 | Default  | Alias     |
@@ -75,7 +77,7 @@ See the example [here](https://github.com/snorreks/nx-vercel-utils/tree/master/e
 | `silent`            | Whether to suppress all logs.                                                                                                                                                                                                               | `false`  | `s`       |
 | `verbose`           | Whether to run the command with verbose logging.                                                                                                                                                                                            | `false`  | `v`       |
 | `packageManager`    | The package manager to use for deploying with firebase-tools. Either: `pnpm`, `npm`, `yarn` or `global`.                                                                                                                                    |
-| `concurrency`       | The number of envrioments to deploy in parallel                                                                                                                                                                                             | 10       | `c`       |
+| `concurrency`       | The number of environments to deploy in parallel                                                                                                                                                                                            | 10       | `c`       |
 
 #### Examples
 
