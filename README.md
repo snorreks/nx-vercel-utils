@@ -37,7 +37,7 @@ You also need to cd into the project and run `vercel link` to link your project 
 
 Example
 
-```
+```zsh
 cd apps/frontend
 vercel login # if you haven't logged in
 vercel link
@@ -51,18 +51,18 @@ See the example [here](https://github.com/snorreks/nx-vercel-utils/tree/master/e
 
 ```json
 ...
-	"targets": {
-		"deploy-vercel-env": {
-			"executor": "../dist:env",
-			"options": {
-				"flavors": {
-					"development": "development",
-					"production": "production",
-					"staging": "staging"
-				},
-				"vercelProjectName": "your-vercel-project-name"
-			}
-		},
+ "targets": {
+  "deploy-vercel-env": {
+   "executor": "../dist:env",
+   "options": {
+    "flavors": {
+     "development": "development",
+     "production": "production",
+     "staging": "staging"
+    },
+    "vercelProjectName": "your-vercel-project-name"
+   }
+  },
 ```
 
 You need to create .env.{flavor} files for each flavor you want to deploy. The flavor name will be the key in the `flavors` object.

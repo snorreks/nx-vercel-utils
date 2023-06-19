@@ -4,7 +4,7 @@ import type { PackageManager } from '$types';
 import { logger, getFlavor, getFlavorValue, getLimiter } from '$utils';
 import { mkdir, writeFile } from 'fs/promises';
 import { getEnvironmentsToDeploy } from './lib/read-envs';
-import { uploadAndDeleteEnvVariable } from './lib/upload-envs';
+import { manageEnvironmentVariableInVercel } from './lib/upload-envs';
 
 type EnviromentInput =
 	| 'production'
@@ -12,7 +12,7 @@ type EnviromentInput =
 	| 'preview'
 	| `preview:${string}`;
 
-interface EmulateOptions {
+interface ExecuteOptions {
 	/** Don't log anything */
 	silent?: boolean;
 	/** Get verbose logs */
@@ -25,13 +25,18 @@ interface EmulateOptions {
 
 	packageManager?: PackageManager;
 
-	vercelProjectName: string;
+	vercelProjectName?: string;
+
+	vercelProjectId: string;
 
 	only?: string[];
 
 	concurrency?: number;
 
 	retryAmounts?: number;
+
+	vercelToken: string;
+	deleteUnusedEnvs?: boolean;
 }
 type Environment = 'production' | 'development' | 'preview';
 
@@ -43,16 +48,29 @@ export interface BaseOptions {
 	githubBranch?: string;
 	localEnvFilePath: string;
 	temporaryDirectory: string;
+	vercelProjectId: string;
+	vercelToken: string;
+	deleteUnusedEnvs?: boolean;
 }
 
 export interface EnvriomentData {
+	/**
+	 * If id is defined, the variable will be updated, otherwise it will be
+	 * created
+	 */
+	id?: string;
 	key: string;
 	value: string;
-	isNew: boolean;
+
+	/**
+	 * If the variable is in vercel, but not in the local env file, it will be
+	 * deleted if deleteUnusedEnvs is true
+	 */
+	deleteEnv?: true;
 }
 
 const getBaseOptions = (
-	options: EmulateOptions,
+	options: ExecuteOptions,
 	context: ExecutorContext,
 ): BaseOptions => {
 	logger.debug('getBaseOptions', options);
@@ -84,6 +102,9 @@ const getBaseOptions = (
 		environment,
 		localEnvFilePath: join(projectRoot, `.env.${flavor}`),
 		temporaryDirectory,
+		deleteUnusedEnvs: options.deleteUnusedEnvs,
+		vercelToken: options.vercelToken,
+		vercelProjectId: options.vercelProjectId,
 	};
 
 	if (
@@ -119,11 +140,14 @@ const createVercelJson = async (directory: string, name: string) => {
 		);
 };
 
-const executor: Executor<EmulateOptions> = async (options, context) => {
+const executor: Executor<ExecuteOptions> = async (options, context) => {
 	logger.setLogSeverity(options);
 	const baseOptions = getBaseOptions(options, context);
 	const { temporaryDirectory } = baseOptions;
-	await createVercelJson(temporaryDirectory, options.vercelProjectName);
+	await createVercelJson(
+		temporaryDirectory,
+		options.vercelProjectName ?? options.vercelProjectId,
+	);
 	let envFileVariables = await getEnvironmentsToDeploy(baseOptions);
 	logger.debug('envFileVariables', envFileVariables);
 	const only = options.only;
@@ -137,11 +161,14 @@ const executor: Executor<EmulateOptions> = async (options, context) => {
 	if (envFileVariables.length === 0) {
 		logger.warn('No variables to upload');
 		return {
-			success: false,
+			success: true,
 		};
 	}
 
-	logger.startSpinner(envFileVariables.length, options.vercelProjectName);
+	logger.startSpinner(
+		envFileVariables.length,
+		options.vercelProjectName ?? options.vercelProjectId,
+	);
 
 	const limit = getLimiter<void>(options.concurrency ?? 10);
 
@@ -150,7 +177,7 @@ const executor: Executor<EmulateOptions> = async (options, context) => {
 			limit(async () => {
 				const startTime = Date.now();
 				try {
-					await uploadAndDeleteEnvVariable(baseOptions, env);
+					await manageEnvironmentVariableInVercel(baseOptions, env);
 					logger.logFunctionDeployed(env.key, Date.now() - startTime);
 				} catch (error) {
 					const errorMessage = (
@@ -163,43 +190,6 @@ const executor: Executor<EmulateOptions> = async (options, context) => {
 			}),
 		),
 	);
-	// const hasFailedEnvironments = logger.hasFailedEnvironments;
-	// const failedDeployedEnvironmentNames =
-	// 	logger.failedDeployedEnvironmentNames;
-	// if (hasFailedEnvironments) {
-	// 	const retryAmounts = options.retryAmounts ?? 3;
-	// 	logger.warn(`Retrying ${retryAmounts} times`);
-	// 	let retryCount = 0;
-	// 	while (retryCount < retryAmounts && hasFailedEnvironments) {
-	// 		retryCount++;
-	// 		logger.warn(`Retrying ${retryCount} time`);
-	// 		envFileVariables = envFileVariables.filter(([key]) =>
-	// 			failedDeployedEnvironmentNames.includes(key),
-	// 		);
-
-	// 		await Promise.all(
-	// 			envFileVariables.map(([key, value]) =>
-	// 				limit(async () => {
-	// 					const startTime = Date.now();
-	// 					try {
-	// 						await uploadAndDeleteEnvVariable(key, value);
-	// 						logger.logFunctionDeployed(
-	// 							key,
-	// 							Date.now() - startTime,
-	// 						);
-	// 					} catch (error) {
-	// 						const errorMessage = (
-	// 							error as { message?: string } | undefined
-	// 						)?.message;
-	// 						logger.debug(error);
-
-	// 						logger.logFunctionFailed(key, errorMessage);
-	// 					}
-	// 				}),
-	// 			),
-	// 		);
-	// 	}
-	// }
 
 	logger.endSpinner();
 

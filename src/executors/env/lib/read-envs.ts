@@ -1,7 +1,34 @@
-import { execute, logger } from '$utils';
+import { logger } from '$utils';
 import { readFile } from 'fs/promises';
 import type { BaseOptions, EnvriomentData } from '..';
-import { join } from 'node:path';
+import axios from 'axios';
+
+interface EnvData {
+	target?: ('production' | 'preview' | 'development')[];
+	type?: 'secret' | 'system' | 'encrypted' | 'plain' | 'sensitive';
+	id?: string;
+	key?: string;
+	value?: string;
+	configurationId?: string | null;
+	createdAt?: number;
+	updatedAt?: number;
+	createdBy?: string | null;
+	updatedBy?: string | null;
+	gitBranch?: string;
+	edgeConfigId?: string | null;
+	edgeConfigTokenId?: string | null;
+	contentHint?: {
+		type: string;
+		storeId: string;
+	} | null;
+	decrypted?: boolean;
+	system?: boolean;
+}
+
+type Response =
+	| { envs: EnvData[] }
+	| EnvData
+	| { envs: EnvData[]; pagination: unknown };
 
 const getEnvFromFilePath = async (
 	filePath: string,
@@ -37,51 +64,53 @@ export const getLocalEnvironments = async ({
 	return getEnvFromFilePath(localEnvFilePath);
 };
 
-export const getOnlineEnvironments = async (
+const getOnlineEnvironments = async (
 	options: BaseOptions,
-): Promise<[string, string][] | undefined> => {
-	try {
-		const {
-			projectRoot,
-			packageManager,
-			environment,
-			githubBranch,
-			temporaryDirectory,
-		} = options;
+): Promise<EnvriomentData[] | undefined> => {
+	const { environment, vercelProjectId, vercelToken } = options;
 
-		const onlineEnvFilePath = join(temporaryDirectory, '.env');
+	const response = await axios<Response>({
+		url: `https://api.vercel.com/v9/projects/${vercelProjectId}/env?decrypt=true`,
+		headers: { Authorization: `Bearer ${vercelToken}` },
+		method: 'GET',
+	});
 
-		const commandArguments: string[] = [
-			'vercel',
-			'env',
-			'pull',
-			onlineEnvFilePath,
-			'--environment',
-			environment,
-		];
-
-		if (githubBranch) {
-			commandArguments.push('--git-branch', githubBranch);
-		}
-
-		commandArguments.push(
-			'--cwd',
-			projectRoot,
-			'--local-config',
-			join(temporaryDirectory, 'vercel.json'),
+	if (response.status !== 200) {
+		logger.error(
+			'Failed to fetch online environments:',
+			response.status,
+			response.statusText,
 		);
-
-		await execute({
-			packageManager,
-			commandArguments,
-			cwd: projectRoot,
-		});
-
-		return getEnvFromFilePath(onlineEnvFilePath);
-	} catch (error) {
-		logger.error('getOnlineEnvironments', error);
 		return;
 	}
+
+	const data = response.data;
+
+	logger.log('getOnlineEnvironments:data', data);
+
+	// Check if the 'envs' property exists on the response data and filter based on target
+	let envs: EnvriomentData[] = [];
+	if ('envs' in data) {
+		envs = data.envs
+			.filter((env) => env.target?.includes(environment))
+			.map(({ id, key, value }) => {
+				return {
+					id,
+					key: key || '',
+					value: value || '',
+				};
+			});
+	} else if ('target' in data && data.target?.includes(environment)) {
+		envs = [
+			{
+				id: data.id,
+				key: data.key || '',
+				value: data.value || '',
+			},
+		];
+	}
+
+	return envs;
 };
 
 export const getEnvironmentsToDeploy = async (
@@ -98,7 +127,6 @@ export const getEnvironmentsToDeploy = async (
 			return localEnvironments.map(([key, value]) => ({
 				key,
 				value,
-				isNew: false,
 			}));
 		}
 
@@ -107,22 +135,38 @@ export const getEnvironmentsToDeploy = async (
 		for (const localEnvironment of localEnvironments) {
 			const [key, value] = localEnvironment;
 			const onlineEnvironment = onlineEnvironments.find(
-				([onlineKey]) => onlineKey === key,
+				(onlineKey) => onlineKey.key === key,
 			);
 			if (!onlineEnvironment) {
 				environmentsToDeploy.push({
 					key,
 					value,
-					isNew: true,
 				});
-			} else if (onlineEnvironment[1] !== value) {
+			} else if (onlineEnvironment.value !== value) {
 				environmentsToDeploy.push({
+					id: onlineEnvironment.id,
 					key,
 					value,
-					isNew: false,
 				});
 			}
 		}
+
+		if (options.deleteUnusedEnvs) {
+			for (const onlineEnvironment of onlineEnvironments) {
+				const localEnvironment = localEnvironments.find(
+					(localKey) => localKey[0] === onlineEnvironment.key,
+				);
+				if (!localEnvironment) {
+					environmentsToDeploy.push({
+						id: onlineEnvironment.id,
+						key: onlineEnvironment.key,
+						value: onlineEnvironment.value,
+						deleteEnv: true,
+					});
+				}
+			}
+		}
+
 		logger.debug('environmentsToDeploy', environmentsToDeploy);
 		return environmentsToDeploy;
 	} catch (error) {

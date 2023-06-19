@@ -1,81 +1,118 @@
+import { logger } from '$utils';
+import axios from 'axios';
 import type { BaseOptions, EnvriomentData } from '..';
-import { getCommandArguments } from './utils';
-import { execute, logger } from '$utils';
 
-const maxTimeout = 2 * 60 * 1000;
+const handleError = (error: any) => {
+	if (error.response) {
+		console.error(error.response.data);
+		console.error(error.response.status);
+		console.error(error.response.headers);
+	} else if (error.request) {
+		console.error(error.request);
+	} else {
+		console.error('Error', error.message);
+	}
+	throw error;
+};
+
+const getBaseOptions = (options: {
+	vercelToken: string;
+	vercelProjectId: string;
+	envId?: string;
+}) => {
+	const { vercelToken, vercelProjectId, envId } = options;
+	let url = `https://api.vercel.com/v9/projects/${vercelProjectId}/env`;
+	if (envId) {
+		url += `/${envId}`;
+	}
+	return {
+		url,
+		headers: { Authorization: `Bearer ${vercelToken}` },
+	};
+};
 
 const deleteEnvVariable = async (
-	options: BaseOptions & { key: string },
-): Promise<boolean> => {
-	const { projectRoot, packageManager, environment, key, githubBranch } =
-		options;
-	logger.debug('deleteEnvVariable', options);
+	options: BaseOptions & { key: string; envId: string },
+) => {
 	try {
-		await execute({
-			packageManager,
-			commandArguments: getCommandArguments({
-				...options,
-				value: undefined,
-				command: 'rm',
-			}),
-			questionAnswers: [
-				{
-					question: `Remove ${key} from which Environments?`,
-					answer: githubBranch
-						? `Preview (${githubBranch})`
-						: environment,
-				},
-			],
-			cwd: projectRoot,
-			maxTimeout,
+		const { key } = options;
+		logger.debug('deleteEnvVariable', options);
+
+		const response = await axios({
+			...getBaseOptions(options),
+			method: 'delete',
 		});
-		return true;
+
+		if (response.status !== 200) {
+			throw new Error(`Error deleting environment variable ${key}`);
+		}
 	} catch (error) {
-		logger.debug('Error removing variable', error);
-		return false;
+		handleError(error);
 	}
 };
 
 const addEnvVariable = async (
 	options: BaseOptions & { key: string; value: string },
 ) => {
-	const { projectRoot, packageManager, value, key } = options;
+	const { value, key, environment, githubBranch } = options;
 	logger.debug('addEnvVariable', options);
-	await execute({
-		packageManager,
-		commandArguments: getCommandArguments({
-			...options,
-			command: 'add',
-		}),
-		cwd: projectRoot,
-		questionAnswers: [
-			{
-				question: ` the value of ${key}? `,
-				answer: value,
+
+	try {
+		const response = await axios({
+			...getBaseOptions(options),
+			method: 'post',
+			data: {
+				key,
+				value: value,
+				type: 'plain',
+				target: [environment],
+				gitBranch: githubBranch,
 			},
-			{
-				question: `to which Git branch? (leave empty for all Preview branches)?`,
-				answer: '',
-			},
-		],
-		maxTimeout,
-	});
+		});
+
+		if (response.status !== 200) {
+			throw new Error(`Error adding environment variable ${key}`);
+		}
+	} catch (error) {
+		handleError(error);
+	}
 };
 
-export const uploadAndDeleteEnvVariable = async (
-	options: BaseOptions,
-	{ key, value, isNew }: EnvriomentData,
-): Promise<void> => {
-	if (!isNew) {
-		await deleteEnvVariable({
-			...options,
-			key,
+const editEnvVariable = async (
+	options: BaseOptions & { key: string; value: string; envId: string },
+) => {
+	const { value, key, githubBranch, environment } = options;
+	logger.debug('addEnvVariable', options);
+
+	try {
+		const response = await axios({
+			...getBaseOptions(options),
+			method: 'patch',
+			data: {
+				gitBranch: githubBranch,
+				key,
+				value,
+				target: environment,
+			},
 		});
+
+		if (response.status !== 200) {
+			throw new Error(`Error editing environment variable ${key}`);
+		}
+	} catch (error) {
+		handleError(error);
+	}
+};
+
+export const manageEnvironmentVariableInVercel = async (
+	options: BaseOptions,
+	{ key, value, id, deleteEnv }: EnvriomentData,
+): Promise<void> => {
+	if (id) {
+		return deleteEnv
+			? deleteEnvVariable({ ...options, key, envId: id })
+			: editEnvVariable({ ...options, key, value, envId: id });
 	}
 
-	await addEnvVariable({
-		...options,
-		key,
-		value,
-	});
+	return addEnvVariable({ ...options, key, value });
 };

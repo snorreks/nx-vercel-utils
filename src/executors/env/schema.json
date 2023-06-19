@@ -34,6 +34,16 @@
 			"description": "The name of the vercel project to deploy to",
 			"aliases": ["project"]
 		},
+		"vercelProjectId": {
+			"type": "string",
+			"description": "The id of the vercel project to deploy to",
+			"aliases": ["id"]
+		},
+		"vercelToken": {
+			"type": "string",
+			"description": "The vercel token to use for deploying",
+			"aliases": ["token"]
+		},
 		"only": {
 			"type": "array",
 			"description": "Only deploy the specified functions",
@@ -46,7 +56,11 @@
 			"type": "number",
 			"description": "The number of envrioments to deploy in parallel",
 			"aliases": ["c"]
+		},
+		"deleteUnusedEnvs": {
+			"type": "boolean",
+			"description": "Whether to delete unused environments"
 		}
 	},
-	"required": ["flavors", "vercelProjectName"]
+	"required": ["flavors", "vercelProjectId", "vercelToken"]
 }

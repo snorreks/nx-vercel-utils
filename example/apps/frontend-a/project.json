@@ -10,7 +10,11 @@
 					"development": "development",
 					"production": "production",
 					"staging": "staging"
-				}
+				},
+				"vercelProjectName": "astro-monorepo-vercel",
+				"vercelProjectId": "prj_tLj5v7LwJI5dhsIddDS0DsQG9cPr",
+				"vercelToken": "g34KRLZgovvecfnmZN4Wx994",
+				"deleteUnusedEnvs": true
 			}
 		}
 	}
